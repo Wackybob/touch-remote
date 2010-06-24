@@ -1,0 +1,670 @@
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />    
+  <title>The source code</title>
+    <link href="../resources/prettify/prettify.css" type="text/css" rel="stylesheet" />
+    <script type="text/javascript" src="../resources/prettify/prettify.js"></script>
+</head>
+<body  onload="prettyPrint();">
+    <pre class="prettyprint lang-js"><div id="cls-Ext.util.Scroller"></div>/**
+ * @class Ext.util.Scroller
+ * @extends Ext.util.Observable
+ */
+Ext.util.Scroller = Ext.extend(Ext.util.Observable, {
+    <div id="cfg-Ext.util.Scroller-bounces"></div>/**
+     * @cfg {Boolean} bounces
+     * Enable bouncing during scrolling past the bounds. Defaults to true.
+     */
+    bounces: true,
+
+    <div id="cfg-Ext.util.Scroller-momentum"></div>/**
+     * @cfg {Boolean} momentum
+     * Enable momentum scrolling. Defaults to true.
+     */
+    momentum: true,
+
+    <div id="cfg-Ext.util.Scroller-horizontal"></div>/**
+     * @cfg {Boolean} horizontal
+     * Enable horizontal scrolling. Defaults to false.
+     */
+    horizontal: false,
+
+    <div id="cfg-Ext.util.Scroller-vertical"></div>/**
+     * @cfg {Boolean} vertical
+     * Enables vertical scrolling. Defaults to true.
+     */
+    vertical: true,
+
+    momentumResetTime: 150,
+    transitionDuration: 500,
+
+    deceleration: 0.0018,
+    friction: 0.4,
+    bounceFriction: 0.55,
+
+    transitionEasing: 'cubic-bezier(0.4, .75, 0.5, .95)',
+
+    snapping: false,
+    snapY: 0,
+    snapX: 0,
+
+    <div id="cfg-Ext.util.Scroller-scrollbars"></div>/**
+     * @cfg {Boolean} scrollbars
+     * Turn on a visual ui indicator for scrolling. Defaults to true.
+     */
+    scrollbars: true,
+
+    <div id="method-Ext.util.Scroller-constructor"></div>/**
+     * @constructor
+     * @param {Mixed} el An Ext.Element, HTMLElement or string linking to the id
+     * of an Element.
+     * @param {Object} config
+     */
+    constructor : function(el, config) {
+        config = config || {};
+        Ext.apply(this, config);
+
+        this.addEvents(
+            <div id="event-Ext.util.Scroller-scrollstart"></div>/**
+             * @event scrollstart
+             * @param {Ext.EventObject} e
+             * @param {Ext.Scroller} this
+             */
+            'scrollstart',
+            <div id="event-Ext.util.Scroller-scrollend"></div>/**
+             * @event scrollend
+             * @param {Ext.Scroller} this
+             */
+            'scrollend',
+            <div id="event-Ext.util.Scroller-touchstart"></div>/**
+             * @event touchstart
+             * @param {Ext.EventObject} e
+             * @param {Ext.Scroller} this
+             */
+            'touchstart',
+            <div id="event-Ext.util.Scroller-touchend"></div>/**
+             * @event touchend
+             * @param {Ext.EventObject} e
+             * @param {Ext.Scroller} this
+             */
+            'touchend'
+        );
+
+        Ext.util.Scroller.superclass.constructor.call(this);
+
+        var scroller = this.scroller = Ext.get(el);
+
+        // By default disable bouncing and scrollbars on android to help with performance
+        // and be closer to native behavior
+        if (Ext.platform.isAndroidOS) {
+            if (!config.bounces) {
+                this.bounces = false;
+            }
+        }
+
+        scroller.addClass('x-scroller');
+        this.parent = scroller.parent();
+        this.parent.addClass('x-scroller-parent');
+
+        this.offset = {x: 0, y: 0};
+
+        // Set up the touch start event handler.
+        // On touch start we will cancel any running transitions
+        this.parent.on({
+            touchstart: this.onTouchStart,
+            touchend: this.onTouchEnd,
+            scrollstart: this.onScrollStart,
+            scrollend: this.onScrollEnd,
+            scroll: this.onScroll,
+            horizontal: this.horizontal,
+            vertical: this.vertical,
+            scope: this
+        });
+
+        if (this.scrollbars && this.vertical) {
+            this.scrollbarY = new Ext.util.Scroller.Scrollbar(this, 'vertical');
+        }
+
+        // We bind a transition end listeners so we can remove the transition
+        this.scroller.on('webkitTransitionEnd', this.onTransitionEnd, this);
+    },
+
+    onTouchStart : function(e) {
+        var scroller = this.scroller,
+            style = scroller.dom.style;
+
+        if (Ext.platform.isAndroidOS) {
+            e.browserEvent.preventDefault();
+            e.browserEvent.stopPropagation();
+        }
+
+        if (e.touches.length > 1) {
+            return;
+        }
+
+        this.followTouch = e.touch;
+
+        if (this.animating && !this.bouncing) {
+            // Stop the current transition.
+            this.animating = false;
+            style.webkitTransitionDuration = '0ms';
+
+            if (this.scrollbarY) {
+                this.scrollbarY.stop();
+            }
+            if (this.scrollbarX) {
+                this.scrollbarX.stop();
+            }
+
+            transform = new WebKitCSSMatrix(window.getComputedStyle(scroller.dom).webkitTransform);
+            style.webkitTransform = 'translate3d(' + transform.m41 + 'px, ' + transform.m42 + 'px, 0)';
+
+            this.offset = {
+                x: transform.m41,
+                y: transform.m42
+            };
+
+            this.fireEvent('scrollend', this, this.offset);
+        }
+
+        this.updateBounds();
+        this.fireEvent('touchstart', e, this);
+    },
+
+    onScrollStart : function(e, t) {
+        // This will prevent the click event to be fired during the scroll operation
+        Ext.getDoc().on('click', function(e) {
+            e.preventDefault();
+        }, this, {single: true});
+
+        if (e.touch != this.followTouch) {
+            return;
+        }
+
+        this.momentum = this.momentum ? {} : false;
+        if (this.horizontal && this.momentum) {
+            this.momentum.horizontal = {
+                startTime: e.time,
+                startX: this.offset.x
+            };
+        }
+        if (this.vertical && this.momentum) {
+            this.momentum.vertical = {
+                startTime: e.time,
+                startY: this.offset.y
+            };
+        }
+        this.fireEvent('scrollstart', e, this);
+    },
+
+    onScroll : function(e, t) {
+        if (e.touch != this.followTouch) {
+            return;
+        }
+
+        var newX = this.horizontal ? (this.offset.x + e.previousDeltaX) : 0,
+            newY = this.vertical ? (this.offset.y + e.previousDeltaY) : 0,
+            pos;
+
+        // If bounces is enabled, we want to slow down the drag
+        if (this.bounces) {
+            if (this.horizontal) {
+                if (newX < this.bounds.x) {
+                    newX = this.offset.x + (e.previousDeltaX / 2);
+                }
+                else if (newX > 0) {
+                    newX = this.offset.x + (e.previousDeltaX / 2);
+                }
+            }
+            if (this.vertical) {
+                if (newY < this.bounds.y) {
+                    newY = this.offset.y + (e.previousDeltaY / 2);
+                }
+                else if (newY > 0) {
+                    newY = this.offset.y + (e.previousDeltaY / 2);
+                }
+            }
+        }
+
+        pos = {
+            x: Math.round(newX),
+            y: Math.round(newY)
+        };
+
+        this.scrollTo({x: pos.x, y: pos.y}, false);
+
+        // While we are scrolling, we are keeping track of the momentum
+        var hd = (e.previousDeltaX > 0) ? 'right' : 'left',
+            vd = (e.previousDeltaY > 0) ? 'down' : 'up';
+        if (this.horizontal && this.momentum && this.momentum.horizontal.direction != hd) {
+            if (this.momentum.horizontal.direction) {
+                this.momentum.horizontal = {
+                    startTime: e.time,
+                    startX: pos.x,
+                    direction: hd
+                };
+            }
+            else {
+                this.momentum.horizontal.direction = hd;
+            }
+        }
+        if (this.vertical && this.momentum && this.momentum.vertical.direction != vd) {
+            if (this.momentum.vertical.direction) {
+                this.momentum.vertical = {
+                    startTime: e.time,
+                    startY: pos.y,
+                    direction: vd
+                };
+            }
+            else {
+                this.momentum.vertical.direction = vd;
+            }
+        }
+    },
+
+    onTouchEnd : function(e, t) {
+        if (e.touch != this.followTouch) {
+            return;
+        }
+        this.fireEvent('touchend', e, this);
+    },
+
+    // We are going to decelerate based on the momentum
+    onScrollEnd : function(e, t) {
+        if (e.touch != this.followTouch) {
+            return;
+        }
+
+        if (this.momentum) {
+            // Check if we have enough momentum to actually do a deceleration
+            if (e.previousDeltaTime <= this.momentumResetTime && (Math.abs(e.previousDeltaY) > 2 || Math.abs(e.previousDeltaX) > 2)) {
+                // Start the deceleration!
+                this.startDeceleration(e);
+            }
+            else {
+                this.snapToBounds(true);
+            }
+        }
+
+        if (!this.animating) {
+            this.snapToBounds(true);
+        }
+
+        if (!this.animating) {
+            this.fireEvent('scrollend', this);
+        }
+    },
+
+    scrollTo : function(pos, animate, easing, inBounds) {
+        // store the actual position in a private variable
+        pos = {x: Math.round(pos.x), y: Math.round(pos.y)};
+        if (!this.bounces || inBounds) {
+            pos = this.constrainToBounds(pos);
+        }
+        this.offset = pos;
+
+        var style = this.scroller.dom.style;
+
+        // If we want this scroll operation to be animated
+        // we are going to set the webkitTransitionDuration on the scroller
+        // else we instantly jump the the afterScroll handler
+        if (animate) {
+            this.animating = true;
+
+            // We scroll using webkit transforms in combination with the translate property.
+            // This is much faster then animating the top and left values
+            style.webkitTransitionTimingFunction = easing || this.transitionEasing;
+            style.webkitTransitionDuration = (typeof animate == 'number') ? (animate + 'ms') : (this.transitionDuration + 'ms');
+            style.webkitTransform = 'translate3d(' + pos.x + 'px, ' + pos.y + 'px, 0)';
+        }
+        else {
+            style.webkitTransitionDuration = '0ms';
+            style.webkitTransform = 'translate3d(' + pos.x + 'px, ' + pos.y + 'px, 0)';
+        }
+
+        if (this.scrollbarX) {
+            this.scrollbarX.scrollTo(pos, animate, easing || this.transitionEasing);
+        }
+
+        if (this.scrollbarY) {
+            this.scrollbarY.scrollTo(pos, animate, easing || this.transitionEasing);
+        }
+
+        this.fireEvent('scroll', this, pos);
+    },
+
+    onTransitionEnd : function() {
+        if (this.animating) {
+            this.animating = false;
+
+            this.snapToBounds(350, this.bounceEasing);
+
+            if (!this.animating) {
+                this.bouncing = false;
+                this.fireEvent('scrollend', this, this.offset);
+            }
+        }
+    },
+
+    updateBounds : function() {
+        this.parentSize = {
+            width: this.parent.getWidth(true),
+            height: this.parent.getHeight(true)
+        };
+
+        this.contentSize = {
+            width: this.scroller.dom.scrollWidth,
+            height: this.scroller.dom.scrollHeight
+        };
+
+        // Get the scrollable view size
+        this.size = {
+            width: Math.max(this.contentSize.width, this.parentSize.width),
+            height: Math.max(this.contentSize.height, this.parentSize.height)
+        };
+
+        // Determine the boundaries that we can drag between
+        this.bounds = {
+            x: this.parentSize.width - this.size.width,
+            y: this.parentSize.height - this.size.height
+        };
+
+        if (this.scrollbarX) {
+            this.scrollbarX.update();
+        }
+
+        if (this.scrollbarY) {
+            this.scrollbarY.update();
+        }
+    },
+
+    snapToBounds : function(animate, easing) {
+        if (!this.bounds) {
+            this.updateBounds();
+        }
+
+        var pos = this.constrainToBounds(this.offset);
+        if (this.snapping) {
+            if (this.snapY) {
+                pos.y = Math.round(pos.y / this.snapY) * this.snapY;
+            }
+            if (this.snapX) {
+                pos.x = Math.round(pos.x / this.snapX) * this.snapX;
+            }
+        }
+
+        if (pos.x != this.offset.x || pos.y != this.offset.y) {
+            this.scrollTo(pos, animate, easing || this.transitionEasing);
+            this.bouncing = true;
+        }
+    },
+
+    constrainToBounds : function(pos) {
+        if (!this.bounds) {
+            this.updateBounds();
+        }
+        return {
+            x: Math.min(Math.max(this.bounds.x, pos.x), 0),
+            y: Math.min(Math.max(this.bounds.y, pos.y), 0)
+        };
+    },
+
+    /**
+     * Start deceleration is fired inside onTouchEnd and determines distance since momentum start,
+     * the speed of the motion, and then uses transition to keep scrolling
+     * @private
+     */
+    startDeceleration : function(e) {
+        var momentum = this.momentum,
+            offset = this.offset,
+            bounds = this.bounds,
+
+            // Determine where we are going
+            directionY = e.previousDeltaY > 0 ? 1 : -1,
+            directionX = e.previousDeltaX > 0 ? 1 : -1,
+
+            // Make all these things positive numbers
+            offsetY = offset.y,
+            offsetX = offset.x,
+            boundsY = bounds.y,
+            boundsX = bounds.x,
+
+            // Calculate the distance we have scrolled since we started
+            // the momentum buildup
+            distanceY = Math.abs(offsetY - (this.vertical && momentum.vertical && momentum.vertical.startY)) || 0,
+            distanceX = Math.abs(offsetX - (this.horizontal && momentum.horizontal && momentum.horizontal.startX)) || 0,
+
+            vertical = distanceY > distanceX,
+
+            // Determine the duration of the momentum buildup
+            time = e.time - Math.max(
+                (momentum.vertical && momentum.vertical.startTime) || 0,
+                (momentum.horizontal && momentum.horizontal.startTime) || 0
+            ),
+
+            // Figure out the momentum for both directions
+            speedY = distanceY / time,
+            speedX = distanceX / time,
+
+            // The amount we want to scroll
+            scrollX = 0,
+            scrollY = 0,
+
+            // The maximum amount the transition will be able to bounce
+            maxBounceY,
+            maxBounceX,
+            bounceY = false,
+            bounceX = false,
+            durationY = 0,
+            durationX = 0,
+            easing = this.transitionEasing;
+
+        //alert(offsetX, momentum.vertical.startX)
+        if (vertical) {
+            // Determine how much more we want to scroll based on speed and deceleration
+            scrollY = speedY / this.deceleration;
+            maxBounceY =  this.parent.dom.clientHeight/4;
+            // If we are scrolling down and we are already below the bottom or the amount we are going to scroll
+            // down is more then the amount left plus the maxBounceY, use a different easing, duration and scroll.y
+            if (directionY < 0) {
+                // We are already below the bottom
+                if(offsetY < boundsY) {
+                    scrollY = maxBounceY * 0.2 * speedY;
+                    bounceY = boundsY - offsetY + scrollY;
+                }
+                // The amount we are going to scroll down is more then the amount we have left
+                else if(scrollY > offsetY - boundsY) {
+                    scrollY = Math.min(offsetY - boundsY + (this.bounceFriction * this.friction * speedY * maxBounceY), offsetY - boundsY + maxBounceY);
+                    bounceY = offsetY - boundsY + scrollY;
+                }
+            }
+            // If we are scrolling up and we are already above the top or the amount we are going to scroll
+            // up is more then the amount left plus the maxBounceY, use a different easing, duration and scroll.y
+            else if (directionY > 0) {
+                // We are already above the top
+                if(offsetY > 0) {
+                    scrollY = maxBounceY * 0.2 * speedY;
+                    bounceY = offsetY + scrollY;
+                }
+                // The amount we are going to scroll up is more then the amount we have left
+                else if(scrollY > -offsetY + maxBounceY) {
+                    scrollY = Math.min(-offsetY + (this.bounceFriction * this.friction * speedY * maxBounceY), -offsetY + maxBounceY);
+                    bounceY = -offsetY + scrollY;
+                }
+            }
+            durationY = scrollY / ((this.friction * 1.6) * speedY);
+
+            // Save some data we can use for the bounce back
+            this.bounceY = bounceY;
+            this.durationYBeforeBounce = durationY;
+            this.distanceYBeforeBounce = scrollY;
+            this.speedYBeforeBounce = speedY;
+
+            easing = this.transitionEasing;
+        }
+        else {
+            // Determine how much more we want to scroll based on speed and deceleration
+            scrollX = speedX / this.deceleration;
+            maxBounceX = this.parent.dom.clientWidth/4;
+
+            // If we are scrolling down and we are already below the bottom or the amount we are going to scroll
+            // down is more then the amount left plus the maxBounceY, use a different easing, duration and scroll.y
+            if (directionX < 0) {
+                // We are already below the bottom
+                if(offsetX < boundsX) {
+                    scrollX = maxBounceX * 0.2 * speedY;
+                    bounceX = boundsX - offsetX + scrollX;
+                }
+                // The amount we are going to scroll right is more then the amount we have left
+                else if(scrollX > offsetX - boundsX) {
+                    scrollX = Math.min(offsetY - boundsX + (this.bounceFriction * this.friction * speedX * maxBounceX), offsetX - boundsX + maxBounceX);
+                    bounceX = offsetX - boundsX + scrollX;
+                }
+            }
+            // If we are scrolling up and we are already above the top or the amount we are going to scroll
+            // up is more then the amount left plus the maxBounceY, use a different easing, duration and scroll.y
+            else if (directionX > 0) {
+                // We are already above the top
+                if(offsetX > 0) {
+                    scrollX = maxBounceX * 0.2 * speedX;
+                    bounceX = offsetX + scrollX;
+                }
+                // The amount we are going to scroll up is more then the amount we have left
+                else if(scrollX > -offsetX + maxBounceX) {
+                    scrollX = Math.min(-offsetX + (this.bounceFriction * this.friction * speedX * maxBounceX), -offsetX + maxBounceX);
+                    bounceX = -offsetX + scrollX;
+                }
+            }
+
+            durationX = scrollX / ((this.friction * 1.6) * speedX);
+            // Save some data we can use for the bounce back
+            this.bounceX = bounceX;
+            this.durationXBeforeBounce = durationX;
+            this.distanceXBeforeBounce = scrollX;
+            this.speedXBeforeBounce = speedX;
+
+            easing = this.transitionEasing;
+        }
+
+        this.scrollTo({
+            x: offsetX + (directionX * Math.round(scrollX)),
+            y: offsetY + (directionY * Math.round(scrollY))
+        }, Math.max(durationX, durationY), easing);
+    }
+});
+
+<div id="cls-Ext.util.Scroller.Scrollbar"></div>/**
+ * @class Ext.util.Scroller.Scrollbar
+ * @extends Object
+ * @private
+ */
+Ext.util.Scroller.Scrollbar = Ext.extend(Object, {
+    size: 0,
+    maxSize: 0,
+    maxScroll: 0,
+    scrollbarOffset: 4,
+
+    constructor : function(scroller, direction) {
+        this.scroller = scroller;
+        this.container = scroller.parent;
+        this.direction = direction;
+        this.bar = this.container.createChild({
+            cls: 'x-scrollbar x-scrollbar-' + direction
+        });
+        this.hide();
+    },
+
+    update : function() {
+        var scroller = this.scroller,
+            contentSize = scroller.contentSize,
+            parentSize = scroller.parentSize,
+            size = scroller.size,
+            height, width;
+
+        if (this.direction == 'vertical') {
+            // make sure the scrollbar only shows when the content is higher then the parent
+            if (contentSize.height > parentSize.height) {
+                height = Math.round((parentSize.height * parentSize.height) / size.height);
+                this.bar.setHeight(height);
+                this.scrollMax = parentSize.height - height - (this.scrollbarOffset*2);
+                this.autoShow = true;
+            }
+            else {
+                this.autoShow = false;
+            }
+        }
+        else {
+            if (contentSize.width > parentSize.width) {
+                width = Math.round((parentSize.width * parentSize.width) / size.width);
+                this.bar.setWidth(width);
+                this.scrollMax = parentSize.width - width - (this.scrollbarOffset*2);
+                this.autoShow = true;
+            }
+            else {
+                this.autoShow = false;
+            }
+        }
+    },
+
+    scrollTo : function(pos, animate, easing) {
+        var me = this,
+            scroller = me.scroller,
+            style = me.bar.dom.style,
+            transform;
+
+        if (!me.autoShow) {
+            return;
+        }
+
+        if (me.hidden) {
+            me.show();
+        }
+
+        if (me.hideTimeout) {
+            clearTimeout(me.hideTimeout);
+        }
+
+        me.hideTimeout = setTimeout(function() {
+            me.hide();
+            me.hideTimeout = null;
+        }, 800);
+
+        style.webkitTransitionTimingFunction = easing || scroller.transitionEasing;
+        if (animate) {
+            style.webkitTransitionDuration = (typeof animate == 'number') ? (animate + 'ms, 500ms') : (scroller.transitionDuration + 'ms, 500ms');
+        }
+        else {
+            style.webkitTransitionDuration = '0ms, 500ms';
+        }
+
+        if (me.direction == 'horizontal') {
+            transform = (me.scrollMax / scroller.bounds.x * scroller.offset.x) + this.scrollbarOffset;
+            style.webkitTransform = 'translate3d(' + transform + 'px, 0px, 0px)';
+        }
+        else {
+            transform = (me.scrollMax / scroller.bounds.y * scroller.offset.y) + this.scrollbarOffset;
+            style.webkitTransform = 'translate3d(0px, ' + transform + 'px, 0px)';
+        }
+    },
+
+    hide : function() {
+        this.bar.setStyle('opacity', '0');
+        this.hidden = true;
+    },
+
+    show : function() {
+        this.bar.setStyle('opacity', '1');
+        this.hidden = false;
+    },
+
+    stop : function() {
+        var style = this.bar.dom.style,
+            transform;
+
+        style.webkitTransitionDuration = '0ms';
+        transform = new WebKitCSSMatrix(window.getComputedStyle(this.bar.dom).webkitTransform);
+        style.webkitTransform = 'translate3d(' + transform.m41 + 'px, ' + transform.m42 + 'px, 0)';
+    }
+});</pre>    
+</body>
+</html>

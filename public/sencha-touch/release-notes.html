@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html> 
+<head> 
+<meta charset="UTF-8" />
+
+<title>Sencha Touch Release Notes</title> 
+
+<style type="text/css" media="screen">
+
+body { 
+    color: #333; 
+    padding: 0 40px 40px; 
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    line-height: normal;
+    width: 800px;
+    margin: 0 auto;
+}
+    
+a#logo {
+    background: transparent url(resources/shared/logo-sencha-sm.png) no-repeat scroll 0px 100%;
+    display: block;
+    height: 58px;
+    margin: 0;
+    padding: 0;
+    width: 134px;
+
+    overflow: hidden;
+    text-indent: 150%;
+    white-space: nowrap;
+}
+
+pre {
+    background: ghostWhite;
+    border: 1px solid #ddd;
+    font-family: Menlo, Monaco, Courier, monospace;
+    overflow: auto;
+    padding: 12px;
+}
+
+p code,
+li code {
+    background-color: ghostWhite;
+    border: 1px solid #DEDEDE;
+    color: #444;
+    font-size: 90%;
+    padding: 0px 0.2em;
+}
+
+h1, h2, h3 { 
+    font-weight: 600; 
+    margin: 1em 0;
+}
+h1 { font-size: 28px; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+ul li { padding: 2px 0; }
+.doc { color: blue; }
+.change { color: #196cb4; }
+.new { color: #6e7a32; }
+ul { padding: .1em 1.5em; }
+.notes { color: #777; }
+a { color: #0464BB; }
+a:hover { color: rgb(28, 65, 124); }
+    
+hr {
+    color: #e0e0e0;
+    background-color: #e0e0e0;
+    height: 4px;   
+    border: none;
+    outline: none;     
+}
+
+
+</style>
+</head> 
+<body> 
+    
+<a href="/" id="logo">Sencha Touch - JavaScript Framework</a>
+ 
+<h1>Release Notes for Sencha Touch 0.90</h1> 
+
+<p class="notes">Release Notes: June 17, 2010<br />
+    Version Number: 0.90</p>
+
+<h2>New In This Release</h2>
+<p>
+Welcome to the very first public beta release of Sencha Touch. We’re incredibly excited for you to see what we’ve been working on and to get your feedback and comments on what we’ve built! 
+</p>
+<h2>Overview of the Product</h2>
+<p>
+Sencha Touch is a Javascript framework for developers creating applications targeted for touch-interface devices such as the Apple iPhone, iPod Touch, iPad, and Android. It lets you create an elegant, consistent user experience with minimal effort, with the skills and tools you already have. It makes extensive use of technologies from HTML5 and CSS3 to provide a native-quality application experience without the use of plugins. Please view the included API documentation and the demo source code for working examples of Sencha Touch applications.
+</p>
+
+<h2>Known Issues &amp; Recommendations</h2>
+<ul>
+    <li>Form entry on Android does not operate correctly. Element positions are not reported correctly back to the OS and leads to unexpected behaviors.</li>
+    <li>The API for Sortable list views will change before release. If you are using this API heavily, you should anticipate that your code will break with each beta update.</li>
+    <li>Nested Lists are not based on the List component in beta, but will be for final Release.</li>
+    <li>Picker API and behavior will change before release. At the moment it's possible to give it parameters that result in incorrect behavior.</li>
+    <li>The Maps and Carousel components both respond to swipe events resulting in a carousel transition and a map drag at the same time. These will be disambiguated in the final release.</li>
+    <li>While HTML5 video and audio operate correctly in basic use, when HTML5 video is combined with touch events or transitions, there is a likelihood of browser crashes. These are known WebKit issues.</li>
+    <li>The video component on Android works correctly only with Google sourced videos (YouTube etc.). This appears to be an issue with Android video decoding.</li>
+    <li>Please be aware that HTML5 audio and video tags should be explicitly tested before deployment since there are issues with cross-platform codec operation</li>
+    <li>Maps have occasional rendering issues.</li>
+    <li>Swappable list headers are hidden during fast scrolls. This will be changed for final release.</li>
+    <li>Android occasionally drops the initial drag event for draggable components. </li>
+    <li>Fields in toolbar require restyling.</li>
+    <li>Incorrect viewport sizing on initial page load on Android 2.1 may result in improper layout.</li>
+</ul>
+</body></html> 
